@@ -29,6 +29,8 @@ static BOOL isHaveRightSymbol = NO;   ///< 记录是否输入右边计算符，�
 static BOOL isHaveRightSymbolFirst = NO;   ///< 开始保存newNum时候是不是第一次
 static BOOL isHaveCalculateSymbolClicked = NO;   ///< 保存 = 按钮点击，得出结果后用户再次点击数字直接从新开始，由此判断，
 static BOOL isHaveCalculateSymbolClickedFirst = NO;   ///< 保存 = 按钮点击后，用户输入数字是不是第一次
+static BOOL isHaveCalculateSymbolClickedDevide = NO;   ///< 保存 = 按钮点击后，用户再次重新输入数字保存 oldNum时候的中间状态，点 = 是 yes，点 + - X / 为NO
+
 
 static NSInteger currentTextLength = 1;   ///< 记录当前输入框文字长度
 static CGFloat oldNum = 0;  ///< 记录计算的第一个数字
@@ -49,6 +51,21 @@ static CGFloat newNum = 0;  ///< 记录计算的第二个数字
 @implementation ViewController
 
 
+- (BOOL)shouldAutorotate
+{
+    return YES;
+}
+
+- (BOOL)prefersStatusBarHidden
+{
+    return NO;
+}
+
+- (UIStatusBarStyle)preferredStatusBarStyle
+{
+    return UIStatusBarStyleLightContent;
+}
+
 
 - (void)viewDidLoad {
     [super viewDidLoad];
@@ -60,6 +77,7 @@ static CGFloat newNum = 0;  ///< 记录计算的第二个数字
     
     
     [self addObserverForTestField];
+    [self addObserverForDeviceOrientation];
 }
 
 
@@ -75,8 +93,10 @@ static CGFloat newNum = 0;  ///< 记录计算的第二个数字
     NSString *newText = change[@"new"];
     NSMutableString *newTextM = [NSMutableString stringWithString:newText];
     
+    isHavePoint = [newText containsString:@"."];
+    
     // 保存对应的值为数字
-    if (isHaveRightSymbol) {
+    if (isHaveRightSymbol && !isHaveCalculateSymbolClickedDevide) {
         
         // 如果已经输入 右边运算符号，保存新值
         newNum = [[newTextM stringByReplacingOccurrencesOfString:@"," withString:@""] floatValue];
@@ -93,6 +113,46 @@ static CGFloat newNum = 0;  ///< 记录计算的第二个数字
     NSLog(@"oldNum is  %f",oldNum);
     NSLog(@"newNum is  %f",newNum);
 
+}
+
+- (void)addObserverForDeviceOrientation
+{
+    [[UIDevice currentDevice] beginGeneratingDeviceOrientationNotifications];
+    [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(deviceOrientationDidChange) name:UIDeviceOrientationDidChangeNotification object:nil];
+}
+
+- (void)deviceOrientationDidChange
+{
+    NSLog(@"NAV deviceOrientationDidChange:%ld",(long)[UIDevice currentDevice].orientation);
+    if([UIDevice currentDevice].orientation == UIDeviceOrientationPortrait) {
+        [[UIApplication sharedApplication] setStatusBarOrientation:UIInterfaceOrientationPortrait];
+        [self orientationChange:NO];
+        //注意： UIDeviceOrientationLandscapeLeft 与 UIInterfaceOrientationLandscapeRight
+    } else if ([UIDevice currentDevice].orientation == UIDeviceOrientationLandscapeLeft) {
+        [[UIApplication sharedApplication] setStatusBarOrientation:UIInterfaceOrientationLandscapeRight];
+        [self orientationChange:YES];
+    }
+}
+
+
+- (void)orientationChange:(BOOL)landscapeRight
+{
+    CGFloat width = [UIScreen mainScreen].bounds.size.width;
+    CGFloat height = [UIScreen mainScreen].bounds.size.height;
+    if (landscapeRight) {
+        [UIView animateWithDuration:0.2f animations:^{
+            self.view.transform = CGAffineTransformMakeRotation(M_PI_2);
+            self.view.bounds = CGRectMake(0, 0, width, height);
+            self.containerHCons.constant = keyWH * 5;
+            [self.view layoutIfNeeded];
+            
+        }];
+    } else {
+        [UIView animateWithDuration:0.2f animations:^{
+            self.view.transform = CGAffineTransformMakeRotation(0);
+            self.view.bounds = CGRectMake(0, 0, width, height);
+        }];
+    }
 }
 
 - (void)dealloc
@@ -212,8 +272,18 @@ static CGFloat newNum = 0;  ///< 记录计算的第二个数字
         case ButtonTypeNum:
         {
             /// 1.先判断是否长度过大禁止输入
-            if ( !isHaveMinus && (currentTextLength >= 11)) return; // 正数正常最大值 123，345，789
-            if (isHaveMinus && (currentTextLength >= 12)) return; // 负数正常最大值 -123，345，789
+//            if ( !isHaveMinus && (currentTextLength >= 11)) return; // 正数正常最大值 123，345，789
+//            if (isHaveMinus && (currentTextLength >= 12)) return; // 负数正常最大值 -123，345，789
+//            if (isHavePoint && (currentTextLength >= 10)) return; // 负数正常最大值 123.345789
+//            if (!isHavePoint && (currentTextLength >= 9)) return; // 负数正常最大值 123345789
+            NSMutableString *text = [NSMutableString stringWithString:self.textField.text];
+            text = [NSMutableString stringWithString:[text stringByReplacingOccurrencesOfString:@"," withString:@""]];
+            text = [NSMutableString stringWithString:[text stringByReplacingOccurrencesOfString:@"." withString:@""]];
+            text = [NSMutableString stringWithString:[text stringByReplacingOccurrencesOfString:@"-" withString:@""]];
+            NSInteger length = text.length;
+            if (length >= 9) return;
+
+
            
             /// 2. 进入计算
             if (isHaveRightSymbol && !isHaveCalculateSymbolClicked) {
@@ -290,6 +360,14 @@ static CGFloat newNum = 0;  ///< 记录计算的第二个数字
         return;
     }
     
+    // 1. 判断是不是点击了小数点
+    if ([numStr isEqualToString:@"."]) {
+        if (isHavePoint) return;
+        isHavePoint = YES;
+    }
+    
+    
+    
     NSMutableString * text = [NSMutableString stringWithString:self.textField.text];
     
     // 如果原来是 0 ,直接赋值，然后退出，不用考虑加 . - , 这些了
@@ -310,33 +388,49 @@ static CGFloat newNum = 0;  ///< 记录计算的第二个数字
         text = [NSMutableString stringWithString:[text stringByReplacingOccurrencesOfString:@"," withString:@""]];
         // 在计算现在新数字
         text = [NSMutableString stringWithString:[text stringByAppendingString:numStr]];
-        NSInteger index = text.length % 3;
-        if (index == 0) {
-            index = 3;
+
+        if (!isHavePoint) { // 没有小数点的话加上 , 分割
+            
+            NSInteger index = text.length % 3;
+            if (index == 0) {
+                index = 3;
+            }
+            [text insertString:@"," atIndex:index];
         }
-        [text insertString:@"," atIndex:index];
         
         self.textField.text = text;
+        // 防止text 长度变为7 影响下面，直接退出
+        if (text.length == 7) {
+            return;
+        }
     }
     
     
-    if (text.length >= 7) {
+    if (text.length >= 7) { // 上边刚赋值完成后可能就等于 7 了，会一下加两个数字
         
         
+            
         // 先去掉 , 得到原来数字
         text = [NSMutableString stringWithString:[text stringByReplacingOccurrencesOfString:@"," withString:@""]];
         // 在计算现在新数字
         text = [NSMutableString stringWithString:[text stringByAppendingString:numStr]];
-        NSInteger index = text.length % 3;
-        if (index == 0) {
-            index = 3;
+        
+        
+        if (!isHavePoint) { // 没有小数点的话加上 , 分割
+            
+            NSInteger index = text.length % 3;
+            if (index == 0) {
+                index = 3;
+            }
+            
+            [text insertString:@"," atIndex:text.length - 3];
+            [text insertString:@"," atIndex:index];
         }
-
-        [text insertString:@"," atIndex:text.length - 3];
-        [text insertString:@"," atIndex:index];
         
         self.textField.text = text;
     }
+    
+#warning TODO 处理小数点开始
     
     // 计算当前原来值，长度 ---- 是否有负号和小数点去对应的方法中计算
     if (isHavePoint) {
@@ -388,6 +482,8 @@ static CGFloat newNum = 0;  ///< 记录计算的第二个数字
         oldNum = newNum = 0;
         isHaveRightSymbol = isHaveRightSymbolFirst = NO;
         isHaveCalculateSymbolClicked = isHaveCalculateSymbolClickedFirst = NO;
+        isHavePoint = NO;
+        isHaveCalculateSymbolClickedDevide = NO; //退出中间状态
     }
     
     if ([numStr isEqualToString:@"+/-"]) {
@@ -474,6 +570,8 @@ static CGFloat newNum = 0;  ///< 记录计算的第二个数字
         _rightSymbolType = RightSymbolTypePlus;
         // 记录 等号 点击，此处与等号点击处相反
         isHaveCalculateSymbolClicked = isHaveCalculateSymbolClickedFirst = NO;
+        isHaveCalculateSymbolClickedDevide = NO; //退出中间状态
+
     }
     
     if ([numStr isEqualToString:@"-"]) {
@@ -481,6 +579,7 @@ static CGFloat newNum = 0;  ///< 记录计算的第二个数字
         _rightSymbolType = RightSymbolTypeMinus;
         // 记录 等号 点击，此处与等号点击处相反
         isHaveCalculateSymbolClicked = isHaveCalculateSymbolClickedFirst = NO;
+        isHaveCalculateSymbolClickedDevide = NO; //退出中间状态
     }
     
     
@@ -489,6 +588,7 @@ static CGFloat newNum = 0;  ///< 记录计算的第二个数字
         _rightSymbolType = RightSymbolTypeMaulty;
         // 记录 等号 点击，此处与等号点击处相反
         isHaveCalculateSymbolClicked = isHaveCalculateSymbolClickedFirst = NO;
+        isHaveCalculateSymbolClickedDevide = NO; //退出中间状态
     }
     
     
@@ -497,6 +597,7 @@ static CGFloat newNum = 0;  ///< 记录计算的第二个数字
         _rightSymbolType = RightSymbolTypeDivide;
         // 记录 等号 点击，此处与等号点击处相反
         isHaveCalculateSymbolClicked = isHaveCalculateSymbolClickedFirst = NO;
+        isHaveCalculateSymbolClickedDevide = NO; //退出中间状态
         
     }
     
@@ -512,6 +613,7 @@ static CGFloat newNum = 0;  ///< 记录计算的第二个数字
         // 运算完成之后，重新赋值 isHaveRightSymbol，下次继续从 oldNum 开始。
         isHaveRightSymbol = NO;
         isHaveRightSymbolFirst = isHaveRightSymbol;
+        isHaveCalculateSymbolClickedDevide = YES; //进入中间状态
         // 记录 等号 点击，下次用户直接点击数字的话就是彻底新的计算，如果还是点击 等于号，那就是重复上面的运算
         isHaveCalculateSymbolClicked = isHaveCalculateSymbolClickedFirst =YES;
         
@@ -600,6 +702,7 @@ static CGFloat newNum = 0;  ///< 记录计算的第二个数字
     isCheatMode = !isCheatMode;
     if (isCheatMode) {
         [sender setTitle:@"·" forState:UIControlStateNormal];
+        [self calculateWithSymbol:@"c"]; // 复位
     }else
     {
         [sender setTitle:@"." forState:UIControlStateNormal];
