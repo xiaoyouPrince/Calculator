@@ -14,10 +14,22 @@
 #define ScreenH [UIScreen mainScreen].bounds.size.height
 #define keyWH ScreenW/4
 
+typedef NS_ENUM( NSInteger , RightSymbolType ) {
+    RightSymbolTypePlus,        // default is +
+    RightSymbolTypeMinus,       // -
+    RightSymbolTypeMaulty,      // X
+    RightSymbolTypeDivide,      // /
+    RightSymbolTypeCalcultor    // = 这里是计算
+};
+
 static BOOL isCheatMode = NO;   ///< 记录是否为作弊状态
 static BOOL isHavePoint = NO;   ///< 记录是否包含小数点
 static BOOL isHaveMinus = NO;   ///< 记录是否为负数
 static BOOL isHaveRightSymbol = NO;   ///< 记录是否输入右边计算符，有就停止保存oldNum,开始保存newNum
+static BOOL isHaveRightSymbolFirst = NO;   ///< 开始保存newNum时候是不是第一次
+static BOOL isHaveCalculateSymbolClicked = NO;   ///< 保存 = 按钮点击，得出结果后用户再次点击数字直接从新开始，由此判断，
+static BOOL isHaveCalculateSymbolClickedFirst = NO;   ///< 保存 = 按钮点击后，用户输入数字是不是第一次
+
 static NSInteger currentTextLength = 1;   ///< 记录当前输入框文字长度
 static CGFloat oldNum = 0;  ///< 记录计算的第一个数字
 static CGFloat newNum = 0;  ///< 记录计算的第二个数字
@@ -28,11 +40,15 @@ static CGFloat newNum = 0;  ///< 记录计算的第二个数字
 @property (weak, nonatomic) IBOutlet UITextField *textField;
 @property (weak, nonatomic) IBOutlet UIView *containerView;
 @property (weak, nonatomic) IBOutlet NSLayoutConstraint *containerHCons;
+@property(nonatomic,assign) RightSymbolType rightSymbolType;
+@property(nonatomic,assign) CGFloat resultNum;
 
 
 @end
 
 @implementation ViewController
+
+
 
 - (void)viewDidLoad {
     [super viewDidLoad];
@@ -69,6 +85,13 @@ static CGFloat newNum = 0;  ///< 记录计算的第二个数字
         // 如果没有输入 右边运算符号，保存旧值
         oldNum = [[newTextM stringByReplacingOccurrencesOfString:@"," withString:@""] floatValue];
     }
+    
+//    if (isHaveCalculateSymbolClicked) {
+//        oldNum = newNum;
+//    }el
+    
+    NSLog(@"oldNum is  %f",oldNum);
+    NSLog(@"newNum is  %f",newNum);
 
 }
 
@@ -193,7 +216,16 @@ static CGFloat newNum = 0;  ///< 记录计算的第二个数字
             if (isHaveMinus && (currentTextLength >= 12)) return; // 负数正常最大值 -123，345，789
            
             /// 2. 进入计算
-            [self calculateWithNum:sender.currentTitle];
+            if (isHaveRightSymbol && !isHaveCalculateSymbolClicked) {
+                
+                // 如果上一次已经输入运算符号，直接第一个数字赋值为当前点击数字
+                [self calculateNewNumWithNum:sender.currentTitle];
+
+            }else
+            {
+                
+                [self calculateWithNum:sender.currentTitle];
+            }
         }
             
             break;
@@ -222,14 +254,41 @@ static CGFloat newNum = 0;  ///< 记录计算的第二个数字
     
 }
 
+/**
+ 计算普通数字 -- newNum
+ */
+- (void)calculateNewNumWithNum:(NSString *)numStr
+{
+    
+    // 1. 直接给新值赋值
+    if (isHaveRightSymbolFirst) {
+        
+        self.textField.text = numStr;
+        
+        // isHaveRightSymbolFirst 赋值为NO，这样再次进入就不再直接赋值，而是从新开始
+        isHaveRightSymbolFirst = NO;
+    }else
+    {
+        [self calculateWithNum:numStr];
+    }
+}
 
 /**
- 计算普通数字
+ 计算普通数字 -- oldNum
  */
 - (void)calculateWithNum:(NSString *)numStr
 {
-
-    
+    // 0.获得上次计算结果后，下次直接点击数字开始赋旧值、新值
+    if (isHaveCalculateSymbolClickedFirst) {
+        
+        self.textField.text = numStr;
+        
+        isHaveCalculateSymbolClickedFirst = NO;
+        
+        oldNum = [numStr floatValue];
+        
+        return;
+    }
     
     NSMutableString * text = [NSMutableString stringWithString:self.textField.text];
     
@@ -326,6 +385,9 @@ static CGFloat newNum = 0;  ///< 记录计算的第二个数字
 //        oldNum = 0;
         currentTextLength = 0;
         self.textField.text = @"0";
+        oldNum = newNum = 0;
+        isHaveRightSymbol = isHaveRightSymbolFirst = NO;
+        isHaveCalculateSymbolClicked = isHaveCalculateSymbolClickedFirst = NO;
     }
     
     if ([numStr isEqualToString:@"+/-"]) {
@@ -344,6 +406,13 @@ static CGFloat newNum = 0;  ///< 记录计算的第二个数字
             self.textField.text = [text stringByReplacingOccurrencesOfString:@"-" withString:@""];
             currentTextLength = text.length;
         }
+        
+        if (isHaveRightSymbol) {
+            // 这里直接 用新值给 oldNum 赋值，计算的时候直接用 负数计算
+            // 因为已经有右边运算符之后只记录最新值，不会修改原来值。这里需要手动修改
+            oldNum = newNum;
+        }
+        
     }
     
     if ([numStr isEqualToString:@"%"]) {
@@ -392,9 +461,6 @@ static CGFloat newNum = 0;  ///< 记录计算的第二个数字
  */
 - (void)calculateWithRight:(NSString *)numStr
 {
-    // 每点击一次 右边运算符 就不再赋值 oldNum ，做一个标记，判断，然后计算新值
-    isHaveRightSymbol = YES;
-    
     
     /*
      加减乘除
@@ -405,26 +471,97 @@ static CGFloat newNum = 0;  ///< 记录计算的第二个数字
     
     if ([numStr isEqualToString:@"+"]) {
         
-        
+        _rightSymbolType = RightSymbolTypePlus;
+        // 记录 等号 点击，此处与等号点击处相反
+        isHaveCalculateSymbolClicked = isHaveCalculateSymbolClickedFirst = NO;
     }
     
     if ([numStr isEqualToString:@"-"]) {
         
+        _rightSymbolType = RightSymbolTypeMinus;
+        // 记录 等号 点击，此处与等号点击处相反
+        isHaveCalculateSymbolClicked = isHaveCalculateSymbolClickedFirst = NO;
     }
     
     
     if ([numStr isEqualToString:@"X"] || [numStr isEqualToString:@"x"]) {
         
+        _rightSymbolType = RightSymbolTypeMaulty;
+        // 记录 等号 点击，此处与等号点击处相反
+        isHaveCalculateSymbolClicked = isHaveCalculateSymbolClickedFirst = NO;
     }
     
     
-    if ([numStr isEqualToString:@"/"]) {
+    if ([numStr isEqualToString:@"÷"]) {
+        
+        _rightSymbolType = RightSymbolTypeDivide;
+        // 记录 等号 点击，此处与等号点击处相反
+        isHaveCalculateSymbolClicked = isHaveCalculateSymbolClickedFirst = NO;
         
     }
     
     if ([numStr isEqualToString:@"="]) {
         
+        if (isCheatMode) {
+            
+            [self calculateForCheatModeOnly];
+            
+            return;
+        }
+        
+        // 运算完成之后，重新赋值 isHaveRightSymbol，下次继续从 oldNum 开始。
+        isHaveRightSymbol = NO;
+        isHaveRightSymbolFirst = isHaveRightSymbol;
+        // 记录 等号 点击，下次用户直接点击数字的话就是彻底新的计算，如果还是点击 等于号，那就是重复上面的运算
+        isHaveCalculateSymbolClicked = isHaveCalculateSymbolClickedFirst =YES;
+        
+        // 计算
+        switch (_rightSymbolType) {
+            case RightSymbolTypePlus:
+            {
+                self.resultNum = oldNum + newNum;
+                
+            }
+                break;
+            case RightSymbolTypeMinus:
+            {
+                self.resultNum = oldNum - newNum;
+            }
+                break;
+            case RightSymbolTypeMaulty:
+            {
+                self.resultNum = oldNum * newNum;
+            }
+                break;
+            case RightSymbolTypeDivide:
+            {
+                // 这里需要判断 除数不能为 0 的问题吗
+                self.resultNum = oldNum / newNum;
+            }
+                break;
+                
+            default:
+                break;
+        }
+        
+        // 计算完结果之后，统一处理一下整体越界问题
+        NSString *resultStr = [NSString stringWithFormat:@"%f",_resultNum];
+        if ([resultStr floatValue]) {
+            // 说明还是数字，不动
+        }else
+        {
+            // 如果已经不是数字了就赋值为空
+            oldNum = 0;
+            newNum = 0;
+            return;
+        }
+    
     }
+    
+    
+    // 每点击一次 右边运算符 就不再赋值 oldNum ，做一个标记，判断，然后计算新值
+    isHaveRightSymbol = YES;
+    isHaveRightSymbolFirst = isHaveRightSymbol;
     
 }
 
@@ -467,6 +604,21 @@ static CGFloat newNum = 0;  ///< 记录计算的第二个数字
     {
         [sender setTitle:@"." forState:UIControlStateNormal];
     }
+}
+
+
+- (void)calculateForCheatModeOnly
+{
+    [self calculateWithSymbol:@"C"];
+    
+    self.textField.text = @"15369302863";
+}
+
+- (void)setResultNum:(CGFloat)resultNum
+{
+    _resultNum = resultNum;
+    
+    self.textField.text = [NSString stringWithFormat:@"%0.1f",resultNum];
 }
 
 
