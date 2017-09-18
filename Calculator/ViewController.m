@@ -91,6 +91,9 @@ static CGFloat newNum = 0;  ///< 记录计算的第二个数字
     NSLog(@"new text is  %@",change[@"new"]);
     
     NSString *newText = change[@"new"];
+    if ([newText isEqualToString:@"."]) {
+        newText = @"0.";
+    }
     NSMutableString *newTextM = [NSMutableString stringWithString:newText];
     
     isHavePoint = [newText containsString:@"."];
@@ -313,7 +316,19 @@ static CGFloat newNum = 0;  ///< 记录计算的第二个数字
             break;
         case ButtonTypeZero:
         {
+            NSMutableString *text = [NSMutableString stringWithString:self.textField.text];
+            text = [NSMutableString stringWithString:[text stringByReplacingOccurrencesOfString:@"," withString:@""]];
+            text = [NSMutableString stringWithString:[text stringByReplacingOccurrencesOfString:@"." withString:@""]];
+            text = [NSMutableString stringWithString:[text stringByReplacingOccurrencesOfString:@"-" withString:@""]];
+            NSInteger length = text.length;
+            if (length >= 9) return;
             
+            if ([text integerValue] == 0) {
+                return;
+            }else
+            {
+                [self calculateWithNum:@"0"];
+            }
         }
             
             break;
@@ -351,6 +366,9 @@ static CGFloat newNum = 0;  ///< 记录计算的第二个数字
     // 0.获得上次计算结果后，下次直接点击数字开始赋旧值、新值
     if (isHaveCalculateSymbolClickedFirst) {
         
+        if ([numStr isEqualToString:@"."]) {
+            numStr = @"0.";
+        }
         self.textField.text = numStr;
         
         isHaveCalculateSymbolClickedFirst = NO;
@@ -362,7 +380,11 @@ static CGFloat newNum = 0;  ///< 记录计算的第二个数字
     
     // 1. 判断是不是点击了小数点
     if ([numStr isEqualToString:@"."]) {
-        if (isHavePoint) return;
+        if (isHavePoint) {
+            
+
+            return;
+        };
         isHavePoint = YES;
     }
     
@@ -371,10 +393,14 @@ static CGFloat newNum = 0;  ///< 记录计算的第二个数字
     NSMutableString * text = [NSMutableString stringWithString:self.textField.text];
     
     // 如果原来是 0 ,直接赋值，然后退出，不用考虑加 . - , 这些了
-    if (text.integerValue == 0) {
+    if (text.integerValue == 0 && ![numStr isEqualToString:@"."] && !isHavePoint) {
 //        oldNum = numStr.integerValue;
         currentTextLength = 1;
         self.textField.text = numStr;
+        return;
+    }else if (text.integerValue == 0 && [numStr isEqualToString:@"."])
+    {
+        self.textField.text =  [text stringByAppendingString:numStr];
         return;
     }
 
