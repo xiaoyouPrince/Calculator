@@ -488,22 +488,24 @@ static CGFloat newNum = 0;  ///< 记录计算的第二个数字
     
     if ([numStr isEqualToString:@"+/-"]) {
         
-        isHaveMinus = !isHaveMinus;
+//        isHaveMinus = !isHaveMinus;
+        
+        NSMutableString *text = [NSMutableString stringWithString:self.textField.text];
+        isHaveMinus = [text containsString:@"-"];
+        
         if (isHaveMinus) {
             
-            NSMutableString *text = [NSMutableString stringWithString:self.textField.text];
-            [text insertString:@"-" atIndex:0];
-            self.textField.text = text;
+            self.textField.text = [text stringByReplacingOccurrencesOfString:@"-" withString:@""];
             currentTextLength = text.length;
             
         }else
         {
-            NSMutableString *text = [NSMutableString stringWithString:self.textField.text];
-            self.textField.text = [text stringByReplacingOccurrencesOfString:@"-" withString:@""];
+            [text insertString:@"-" atIndex:0];
+            self.textField.text = text;
             currentTextLength = text.length;
         }
         
-        if (isHaveRightSymbol) {
+        if (isHaveRightSymbol && !isHaveCalculateSymbolClickedDevide) {
             // 这里直接 用新值给 oldNum 赋值，计算的时候直接用 负数计算
             // 因为已经有右边运算符之后只记录最新值，不会修改原来值。这里需要手动修改
             oldNum = newNum;
