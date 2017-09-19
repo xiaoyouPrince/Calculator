@@ -35,7 +35,10 @@ static BOOL isHaveCalculateSymbolClickedDevide = NO;   ///< 保存 = 按钮点�
 static NSInteger currentTextLength = 1;   ///< 记录当前输入框文字长度
 static CGFloat oldNum = 0;  ///< 记录计算的第一个数字
 static CGFloat newNum = 0;  ///< 记录计算的第二个数字
-static CGFloat resultLength = 0;  ///< 记录计算计算结果的数字精度，小数点后保留几位
+
+static BOOL isShowStatusBar = NO;   ///< 记录是否隐藏状态栏
+static NSInteger currentDirect = 1;   ///< 记录当前方向 1:竖屏 2:横屏
+
 
 
 @interface ViewController ()
@@ -45,7 +48,6 @@ static CGFloat resultLength = 0;  ///< 记录计算计算结果的数字精度�
 @property (weak, nonatomic) IBOutlet NSLayoutConstraint *containerHCons;
 @property(nonatomic,assign) RightSymbolType rightSymbolType;
 @property(nonatomic,assign) CGFloat resultNum;
-
 
 @end
 
@@ -59,7 +61,15 @@ static CGFloat resultLength = 0;  ///< 记录计算计算结果的数字精度�
 
 - (BOOL)prefersStatusBarHidden
 {
-    return NO;
+//    if (isShowStatusBar) {
+//        return NO;
+//    }else
+//    {
+//        return YES;
+//    }
+    
+    return !isShowStatusBar;
+    
 }
 
 - (UIStatusBarStyle)preferredStatusBarStyle
@@ -129,32 +139,53 @@ static CGFloat resultLength = 0;  ///< 记录计算计算结果的数字精度�
 {
     NSLog(@"NAV deviceOrientationDidChange:%ld",(long)[UIDevice currentDevice].orientation);
     if([UIDevice currentDevice].orientation == UIDeviceOrientationPortrait) {
-        [[UIApplication sharedApplication] setStatusBarOrientation:UIInterfaceOrientationPortrait];
         [self orientationChange:NO];
+        isShowStatusBar = YES;
+        [self setNeedsStatusBarAppearanceUpdate];
         //注意： UIDeviceOrientationLandscapeLeft 与 UIInterfaceOrientationLandscapeRight
     } else if ([UIDevice currentDevice].orientation == UIDeviceOrientationLandscapeLeft) {
-        [[UIApplication sharedApplication] setStatusBarOrientation:UIInterfaceOrientationLandscapeRight];
         [self orientationChange:YES];
+        isShowStatusBar = NO;
+        [self setNeedsStatusBarAppearanceUpdate];
+        
     }
 }
 
 
 - (void)orientationChange:(BOOL)landscapeRight
 {
+    
+    NSInteger inputDirect = landscapeRight ? 2 : 1 ;
+    
+    // 换屏幕时判断当前状态，防止屏幕收到信息就要修改UI
+    if (currentDirect == inputDirect) return;
+    currentDirect = inputDirect;
+    
+    
     CGFloat width = [UIScreen mainScreen].bounds.size.width;
     CGFloat height = [UIScreen mainScreen].bounds.size.height;
     if (landscapeRight) {
         [UIView animateWithDuration:0.2f animations:^{
             self.view.transform = CGAffineTransformMakeRotation(M_PI_2);
-            self.view.bounds = CGRectMake(0, 0, width, height);
-            self.containerHCons.constant = keyWH * 5;
+            self.view.bounds = CGRectMake(0, 0, height, width);
+            
+            // 内容跟着移动
+            self.containerHCons.constant = keyWH * 3;
             [self.view layoutIfNeeded];
+            [self setupUIForLandsscapeRight];
+            if (isCheatMode) [self calculateForCheatModeOnly]; //再计算一次输入的数字
             
         }];
     } else {
         [UIView animateWithDuration:0.2f animations:^{
             self.view.transform = CGAffineTransformMakeRotation(0);
             self.view.bounds = CGRectMake(0, 0, width, height);
+            
+            self.containerHCons.constant = keyWH * 5;
+            [self.view layoutIfNeeded];
+            [self setupUIForNormal];
+            if (isCheatMode) [self calculateForCheatModeOnly]; //再计算一次输入的数字
+
         }];
     }
 }
@@ -165,18 +196,118 @@ static CGFloat resultLength = 0;  ///< 记录计算计算结果的数字精度�
     [self.textField removeObserver:self forKeyPath:@"text"];
 }
 
+
+/**
+ 正常竖屏模式下的UI
+ */
 - (void)setupUI
 {
+
+    [self setupUIForNormal];
+}
+
+- (void)setupUIForLandsscapeRight
+{
+    // 0.先移除以前的
+    [self.containerView.subviews enumerateObjectsUsingBlock:^(__kindof UIView * _Nonnull obj, NSUInteger idx, BOOL * _Nonnull stop) {
+        [obj removeFromSuperview];
+    }];
+    
+    
+    // 设置列数为 10
+    int clos = 10;
+    
+    NSArray *keys = @[
+                      @"(",@")",@"mc",@"m+",@"m-",@"mr",@"c",@"+/-",@"%",@"÷",
+                      @"2nd",@"x2",@"x3",@"xy",@"ex",@"10x",@"7",@"8",@"9",@"x",
+                      @"1/x",@"2√x",@"2√x",@"y√x",@"ln",@"Log10",@"4",@"5",@"6",@"-",
+                      @"x!",@"sin",@"cos",@"tan",@"e",@"EE",@"1",@"2",@"3",@"+",
+                      @"Rad",@")",@"mc",@"m+",@"∏",@"Rand",@"0",@"",@".",@"="];
+    
+    if (isCheatMode) {
+        keys = @[
+                 @"(",@")",@"mc",@"m+",@"m-",@"mr",@"c",@"+/-",@"%",@"÷",
+                 @"2nd",@"x2",@"x3",@"xy",@"ex",@"10x",@"7",@"8",@"9",@"x",
+                 @"1/x",@"2√x",@"2√x",@"y√x",@"ln",@"Log10",@"4",@"5",@"6",@"-",
+                 @"x!",@"sin",@"cos",@"tan",@"e",@"EE",@"1",@"2",@"3",@"+",
+                 @"Rad",@")",@"mc",@"m+",@"∏",@"Rand",@"0",@"",@"·",@"="];
+    }
+    
+    for (int i = 0; i < keys.count; i++) {
+        XYKeyButton *btn = [XYKeyButton new];
+        [btn setTitle:keys[i] forState:UIControlStateNormal];
+        [btn.titleLabel sizeToFit];
+        btn.tag = i;
+        [btn addTarget:self action:@selector(keyClick:) forControlEvents:UIControlEventTouchUpInside | UIControlEventTouchDownRepeat];
+        [self.containerView addSubview:btn];
+        
+        if (i / clos == 0 ) {
+            //btn.isSymbol = YES;
+            btn.btnType = ButtonTypeSymbol;
+        }
+        
+        if (i % clos == clos - 1) {
+            //btn.isRight = YES;
+            btn.btnType = ButtonTypeRight;
+        }
+        
+        
+        CGFloat landscapeW = self.containerView.frame.size.width / clos;
+        CGFloat landscapeH = self.containerHCons.constant / 5;
+
+        CGFloat x = (i % clos) * landscapeW;
+        CGFloat y = (i / clos) * landscapeH;
+        if ([keys[i] isEqualToString:@"0"]) {
+            
+            btn.btnType = ButtonTypeZero;
+            btn.frame = CGRectMake(x, y, landscapeW * 2, landscapeH);
+            i ++;
+        }else
+        {
+            btn.frame = CGRectMake(x, y, landscapeW, landscapeH);
+        }
+        
+        // 添加作弊状态
+        if ([keys[i] isEqualToString:@"."] || [keys[i] isEqualToString:@"·"]) {
+            [btn addTarget:self action:@selector(zeroKeyClick:) forControlEvents:UIControlEventTouchDownRepeat];
+        }
+        
+    }
+}
+
+/*
+    实际上可以抽取一下方法，这样可能会更好一些，将两种布局用一个方法创建
+ 
+    有些特异的问题，还是需要单独处理，暂时先分开写着
+ 
+ */
+
+- (void)setupUIForNormal
+{
+    // 0.先移除以前的
+    [self.containerView.subviews enumerateObjectsUsingBlock:^(__kindof UIView * _Nonnull obj, NSUInteger idx, BOOL * _Nonnull stop) {
+        [obj removeFromSuperview];
+    }];
+    
+    
     // 设置列数为 4
     int clos = 4;
     
     NSArray *keys = @[@"c",@"+/-",@"%",@"÷",
-                     @"7",@"8",@"9",@"x",
-                     @"4",@"5",@"6",@"-",
-                     @"1",@"2",@"3",@"+",
-                     @"0",@"",@".",@"="];
-
-    for (int i = 0; i < 20; i++) {
+                      @"7",@"8",@"9",@"x",
+                      @"4",@"5",@"6",@"-",
+                      @"1",@"2",@"3",@"+",
+                      @"0",@"",@".",@"="];
+    
+    if (isCheatMode) {
+        keys = @[@"c",@"+/-",@"%",@"÷",
+                 @"7",@"8",@"9",@"x",
+                 @"4",@"5",@"6",@"-",
+                 @"1",@"2",@"3",@"+",
+                 @"0",@"",@"·",@"="];
+    }
+    
+    for (int i = 0; i < keys.count; i++) {
         XYKeyButton *btn = [XYKeyButton new];
         [btn setTitle:keys[i] forState:UIControlStateNormal];
         [btn.titleLabel sizeToFit];
@@ -198,13 +329,15 @@ static CGFloat resultLength = 0;  ///< 记录计算计算结果的数字精度�
         CGFloat x = (i % clos) * keyWH;
         CGFloat y = (i / clos) * keyWH;
         if ([keys[i] isEqualToString:@"0"]) {
-            btn.frame = CGRectMake(x, y, keyWH * 2, keyWH);
+            
             btn.btnType = ButtonTypeZero;
+            btn.frame = CGRectMake(x, y, keyWH * 2, keyWH);
             i ++;
         }else
         {
             btn.frame = CGRectMake(x, y, keyWH, keyWH);
         }
+
         
         // 添加作弊状态
         if ([keys[i] isEqualToString:@"."]) {
@@ -213,6 +346,7 @@ static CGFloat resultLength = 0;  ///< 记录计算计算结果的数字精度�
         
     }
 }
+
 
 - (void)keyClick:(XYKeyButton *)sender
 {
@@ -365,6 +499,12 @@ static CGFloat resultLength = 0;  ///< 记录计算计算结果的数字精度�
  */
 - (void)calculateWithNum:(NSString *)numStr
 {
+    // -1 首先判断范围如果不是 . 0-9 就直接返回
+    if ([numStr isEqualToString:@"·"]) {
+        numStr = @".";
+    }
+    
+    
     // 0.获得上次计算结果后，下次直接点击数字开始赋旧值、新值
     if (isHaveCalculateSymbolClickedFirst) {
         
@@ -383,8 +523,6 @@ static CGFloat resultLength = 0;  ///< 记录计算计算结果的数字精度�
     // 1. 判断是不是点击了小数点
     if ([numStr isEqualToString:@"."]) {
         if (isHavePoint) {
-            
-
             return;
         };
         isHavePoint = YES;
@@ -704,6 +842,9 @@ static CGFloat resultLength = 0;  ///< 记录计算计算结果的数字精度�
 
 
 
+/**
+ 字符串的数字转成科学计数法展示
+ */
 - (NSString *)formartScientificNotationWithString:(NSString *)str
 {
 
@@ -747,16 +888,19 @@ static CGFloat resultLength = 0;  ///< 记录计算计算结果的数字精度�
 {
     [self calculateWithSymbol:@"C"];
     
-    CGFloat myNum = 15369302863;
+    CGFloat myNum = 18658275117;
     
-    self.textField.text = [NSString stringWithFormat:@"%g",myNum];
+    if (currentDirect == 1) {
+        self.textField.text = [NSString stringWithFormat:@"%g",myNum];
+    }else
+    {
+        self.textField.text = [NSString stringWithFormat:@"%0.0f",myNum];
+    }
 }
 
 - (void)setResultNum:(CGFloat)resultNum
 {
     _resultNum = resultNum;
-    
-    
     
     self.textField.text = [NSString stringWithFormat:@"%g",resultNum];
 }
