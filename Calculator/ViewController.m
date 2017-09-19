@@ -35,6 +35,7 @@ static BOOL isHaveCalculateSymbolClickedDevide = NO;   ///< 保存 = 按钮点�
 static NSInteger currentTextLength = 1;   ///< 记录当前输入框文字长度
 static CGFloat oldNum = 0;  ///< 记录计算的第一个数字
 static CGFloat newNum = 0;  ///< 记录计算的第二个数字
+static CGFloat resultLength = 0;  ///< 记录计算计算结果的数字精度，小数点后保留几位
 
 
 @interface ViewController ()
@@ -157,6 +158,7 @@ static CGFloat newNum = 0;  ///< 记录计算的第二个数字
         }];
     }
 }
+
 
 - (void)dealloc
 {
@@ -284,7 +286,7 @@ static CGFloat newNum = 0;  ///< 记录计算的第二个数字
             text = [NSMutableString stringWithString:[text stringByReplacingOccurrencesOfString:@"." withString:@""]];
             text = [NSMutableString stringWithString:[text stringByReplacingOccurrencesOfString:@"-" withString:@""]];
             NSInteger length = text.length;
-            if (length >= 9) return;
+            if (length >= 9 && !isHaveRightSymbolFirst) return;
 
 
            
@@ -599,6 +601,7 @@ static CGFloat newNum = 0;  ///< 记录计算的第二个数字
         // 记录 等号 点击，此处与等号点击处相反
         isHaveCalculateSymbolClicked = isHaveCalculateSymbolClickedFirst = NO;
         isHaveCalculateSymbolClickedDevide = NO; //退出中间状态
+        
 
     }
     
@@ -650,6 +653,8 @@ static CGFloat newNum = 0;  ///< 记录计算的第二个数字
             case RightSymbolTypePlus:
             {
                 self.resultNum = oldNum + newNum;
+                
+                
                 
             }
                 break;
@@ -742,14 +747,18 @@ static CGFloat newNum = 0;  ///< 记录计算的第二个数字
 {
     [self calculateWithSymbol:@"C"];
     
-    self.textField.text = @"15369302863";
+    CGFloat myNum = 15369302863;
+    
+    self.textField.text = [NSString stringWithFormat:@"%g",myNum];
 }
 
 - (void)setResultNum:(CGFloat)resultNum
 {
     _resultNum = resultNum;
     
-    self.textField.text = [NSString stringWithFormat:@"%0.1f",resultNum];
+    
+    
+    self.textField.text = [NSString stringWithFormat:@"%g",resultNum];
 }
 
 
