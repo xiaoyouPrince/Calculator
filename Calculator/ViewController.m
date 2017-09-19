@@ -222,7 +222,7 @@ static NSInteger currentDirect = 1;   ///< 记录当前方向 1:竖屏 2:横屏
                       @"2nd",@"x2",@"x3",@"xy",@"ex",@"10x",@"7",@"8",@"9",@"x",
                       @"1/x",@"2√x",@"2√x",@"y√x",@"ln",@"Log10",@"4",@"5",@"6",@"-",
                       @"x!",@"sin",@"cos",@"tan",@"e",@"EE",@"1",@"2",@"3",@"+",
-                      @"Rad",@")",@"mc",@"m+",@"∏",@"Rand",@"0",@"",@".",@"="];
+                      @"Rad",@"sinh",@"cosh",@"tanh",@"∏",@"Rand",@"0",@"",@".",@"="];
     
     if (isCheatMode) {
         keys = @[
@@ -230,7 +230,7 @@ static NSInteger currentDirect = 1;   ///< 记录当前方向 1:竖屏 2:横屏
                  @"2nd",@"x2",@"x3",@"xy",@"ex",@"10x",@"7",@"8",@"9",@"x",
                  @"1/x",@"2√x",@"2√x",@"y√x",@"ln",@"Log10",@"4",@"5",@"6",@"-",
                  @"x!",@"sin",@"cos",@"tan",@"e",@"EE",@"1",@"2",@"3",@"+",
-                 @"Rad",@")",@"mc",@"m+",@"∏",@"Rand",@"0",@"",@"·",@"="];
+                 @"Rad",@"sinh",@"cosh",@"tanh",@"∏",@"Rand",@"0",@"",@"·",@"="];
     }
     
     for (int i = 0; i < keys.count; i++) {
@@ -240,10 +240,17 @@ static NSInteger currentDirect = 1;   ///< 记录当前方向 1:竖屏 2:横屏
         btn.tag = i;
         [btn addTarget:self action:@selector(keyClick:) forControlEvents:UIControlEventTouchUpInside | UIControlEventTouchDownRepeat];
         [self.containerView addSubview:btn];
+        btn.titleLabel.font = [UIFont fontWithName:@".SFUIDisplay-Thin" size:35];
         
-        if (i / clos == 0 ) {
+        if (i / clos == 0 && i % clos != clos - 1) {
             //btn.isSymbol = YES;
             btn.btnType = ButtonTypeSymbol;
+            btn.titleLabel.font = [UIFont fontWithName:@".SFUIDisplay-Thin" size:30];
+        }
+        
+        if (i % clos <= 5) {
+            btn.btnType = ButtonTypeSymbol;
+            btn.titleLabel.font = [UIFont fontWithName:@".SFUIDisplay-Thin" size:20];
         }
         
         if (i % clos == clos - 1) {
